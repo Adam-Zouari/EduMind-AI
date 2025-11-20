@@ -7,6 +7,8 @@ from typing import List, Dict, Any
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import yaml
 import logging
+from pathlib import Path
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,14 +18,20 @@ class TextChunker:
     """
     Handles text chunking with configurable parameters.
     """
-    
+
     def __init__(self, config_path: str = "config/config.yaml"):
         """
         Initialize the TextChunker with configuration.
-        
+
         Args:
             config_path: Path to the configuration file
         """
+        # Handle relative path from RAG directory
+        if not os.path.isabs(config_path) and not os.path.exists(config_path):
+            # Try to find config relative to this file's location
+            current_dir = Path(__file__).parent.parent
+            config_path = str(current_dir / config_path)
+
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         

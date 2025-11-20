@@ -9,6 +9,8 @@ from chromadb.config import Settings
 import yaml
 import logging
 import uuid
+from pathlib import Path
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,22 +20,34 @@ class VectorStore:
     """
     Handles vector database operations using ChromaDB.
     """
-    
+
     def __init__(self, config_path: str = "config/config.yaml"):
         """
         Initialize the VectorStore with configuration.
-        
+
         Args:
             config_path: Path to the configuration file
         """
+        # Handle relative path from RAG directory
+        if not os.path.isabs(config_path) and not os.path.exists(config_path):
+            # Try to find config relative to this file's location
+            current_dir = Path(__file__).parent.parent
+            config_path = str(current_dir / config_path)
+
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
-        
+
         vectordb_config = self.config['vectordb']
         self.collection_name = vectordb_config['collection_name']
         self.persist_directory = vectordb_config['persist_directory']
         self.distance_metric = vectordb_config['distance_metric']
-        
+
+        # Handle relative persist_directory path
+        if not os.path.isabs(self.persist_directory):
+            # Make it relative to the RAG directory (parent of src)
+            current_dir = Path(__file__).parent.parent
+            self.persist_directory = str(current_dir / self.persist_directory)
+
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
             path=self.persist_directory,

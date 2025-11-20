@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 import yaml
 import logging
 from pathlib import Path
+import os
 
 from .ocr_processor import OCRProcessor
 from .text_chunker import TextChunker
@@ -22,7 +23,7 @@ class RAGPipeline:
     """
     Complete pipeline for processing OCR text and enabling RAG.
     """
-    
+
     def __init__(self, config_path: str = "config/config.yaml", use_llm: bool = False):
         """
         Initialize the RAG Pipeline with all components.
@@ -31,6 +32,12 @@ class RAGPipeline:
             config_path: Path to the configuration file
             use_llm: Whether to initialize LLM generator (default: False)
         """
+        # Handle relative path from RAG directory
+        if not os.path.isabs(config_path) and not os.path.exists(config_path):
+            # Try to find config relative to this file's location
+            current_dir = Path(__file__).parent.parent
+            config_path = str(current_dir / config_path)
+
         self.config_path = config_path
 
         with open(config_path, 'r') as f:
