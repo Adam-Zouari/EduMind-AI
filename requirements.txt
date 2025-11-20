@@ -1,39 +1,27 @@
-# Core dependencies
-tika
-python-magic
+# Core RAG dependencies
+langchain==0.1.0
+langchain-community==0.0.10
+langchain-core==0.1.10
 
-# PDF Processing
-PyMuPDF
-pdfplumber
+# Embeddings
+sentence-transformers==2.7.0
 
-# Document Processing
-python-docx
+# Vector Database
+chromadb==0.4.22
 
-# OCR
-pytesseract
-paddleocr
-
-# Web Scraping
-trafilatura
-newspaper3k
-lxml
-beautifulsoup4
-
-# Media Processing
-openai-whisper
-ffmpeg-python
-pyannote.audio
-
-# Image Processing
-opencv-python
-Pillow
-
-# Text Processing
-regex
-ftfy
-unidecode
+# Text processing
+tiktoken==0.5.2
+pypdf==3.17.4
 
 # Utilities
-python-dotenv
-tqdm
-loguru
+pyyaml==6.0.1
+python-dotenv==1.0.0
+tqdm==4.66.1
+requests==2.31.0
+
+# Web Interface
+streamlit==1.28.0
+
+# Optional: For better text splitting
+unstructured==0.11.8
+
