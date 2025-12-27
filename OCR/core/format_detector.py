@@ -1,20 +1,41 @@
 """
 Format detection using Apache Tika and python-magic
 """
-import magic
 from pathlib import Path
 from typing import Optional, Dict
-from tika import detector
 from utils.logger import get_logger
 from config import SUPPORTED_FORMATS
+
+# Try to import magic, but make it optional
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except (ImportError, OSError) as e:
+    MAGIC_AVAILABLE = False
+    print(f"Warning: python-magic not available ({e}). Will use extension-based detection.")
+
+# Try to import tika
+try:
+    from tika import detector
+    TIKA_AVAILABLE = True
+except ImportError:
+    TIKA_AVAILABLE = False
+    print("Warning: tika not available. Will use extension-based detection.")
 
 logger = get_logger(__name__)
 
 class FormatDetector:
     """Detects file format using multiple methods"""
-    
+
     def __init__(self):
-        self.magic = magic.Magic(mime=True)
+        if MAGIC_AVAILABLE:
+            try:
+                self.magic = magic.Magic(mime=True)
+            except Exception as e:
+                logger.warning(f"Failed to initialize python-magic: {e}")
+                self.magic = None
+        else:
+            self.magic = None
     
     def detect(self, file_path: Path) -> Dict[str, str]:
         """
@@ -51,6 +72,8 @@ class FormatDetector:
     
     def _detect_with_magic(self, file_path: Path) -> Optional[str]:
         """Detect MIME type using python-magic"""
+        if not self.magic:
+            return None
         try:
             mime_type = self.magic.from_file(str(file_path))
             logger.debug(f"Magic detected: {mime_type}")
@@ -61,6 +84,8 @@ class FormatDetector:
     
     def _detect_with_tika(self, file_path: Path) -> Optional[str]:
         """Detect MIME type using Apache Tika"""
+        if not TIKA_AVAILABLE:
+            return None
         try:
             mime_type = detector.from_file(str(file_path))
             logger.debug(f"Tika detected: {mime_type}")

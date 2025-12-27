@@ -19,17 +19,18 @@ LOGS_DIR.mkdir(exist_ok=True)
 TIKA_SERVER_JAR = os.getenv("TIKA_SERVER_JAR", None)
 
 # OCR Configuration
-TESSERACT_CMD = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
+# Default Tesseract path for Windows (adjust if installed elsewhere)
+TESSERACT_CMD = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 OCR_LANGUAGES = ["eng", "fra", "spa", "deu"]  # Add more as needed
 OCR_CONFIDENCE_THRESHOLD = 60
 
 # Whisper Configuration
-WHISPER_MODEL = "large-v3"  # Options: tiny, base, small, medium, large, large-v3
-WHISPER_DEVICE = "cuda"  # Options: cuda, cpu
+WHISPER_MODEL = "base"  # Options: tiny, base, small, medium, large, large-v3
+WHISPER_DEVICE = "cpu"  # Options: cuda, cpu
 WHISPER_LANGUAGE = None  # Auto-detect if None
 
 # FFmpeg Configuration
-FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
+FFMPEG_PATH = os.getenv("FFMPEG_PATH", r"C:\Users\ademz\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0-full_build\bin\ffmpeg.exe")
 VIDEO_FRAME_RATE = 1  # Extract 1 frame per second
 
 # Web Scraping Configuration

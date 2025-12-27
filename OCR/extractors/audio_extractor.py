@@ -1,12 +1,19 @@
 """
 Audio extraction using Whisper
 """
+import os
 import whisper
 from pathlib import Path
 from typing import Dict
 import time
 from core.base_extractor import BaseExtractor, ExtractionResult
-from config import WHISPER_MODEL, WHISPER_DEVICE, WHISPER_LANGUAGE
+from config import WHISPER_MODEL, WHISPER_DEVICE, WHISPER_LANGUAGE, FFMPEG_PATH
+
+# Configure FFmpeg path for Whisper
+if os.path.exists(FFMPEG_PATH):
+    # Set the directory containing ffmpeg.exe in PATH
+    ffmpeg_dir = str(Path(FFMPEG_PATH).parent)
+    os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
 class AudioExtractor(BaseExtractor):
     """Extract text from audio files using Whisper"""

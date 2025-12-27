@@ -10,8 +10,7 @@ from extractors.pdf_extractor import PDFExtractor
 from extractors.docx_extractor import DOCXExtractor
 from extractors.ocr_extractor import OCRExtractor
 from extractors.web_extractor import WebExtractor
-from extractors.audio_extractor import AudioExtractor
-from extractors.video_extractor import VideoExtractor
+# Audio and Video extractors are lazy-loaded (imported when needed)
 from processors.text_cleaner import TextCleaner
 from processors.math_extractor import MathExtractor
 from utils.logger import get_logger
@@ -32,7 +31,7 @@ class DataIngestionPipeline:
         self.extractors = {
             "pdf": PDFExtractor(),
             "docx": DOCXExtractor(),
-            "image": OCRExtractor(use_paddle=False),
+            "image": OCRExtractor(use_paddle=False),  # Use Tesseract OCR
             "web": WebExtractor(),
             "audio": None,  # Lazy load (heavy model)
             "video": None   # Lazy load (heavy model)
@@ -158,11 +157,13 @@ class DataIngestionPipeline:
         if extractor is None:
             if format_type == "audio":
                 logger.info("Loading Audio Extractor (Whisper)...")
+                from extractors.audio_extractor import AudioExtractor
                 self.extractors["audio"] = AudioExtractor()
                 extractor = self.extractors["audio"]
             elif format_type == "video":
                 logger.info("Loading Video Extractor (Whisper + FFmpeg)...")
+                from extractors.video_extractor import VideoExtractor
                 self.extractors["video"] = VideoExtractor()
                 extractor = self.extractors["video"]
-        
+
         return extractor

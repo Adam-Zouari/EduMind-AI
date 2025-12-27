@@ -3,7 +3,6 @@ OCR extraction using Tesseract and PaddleOCR
 """
 import pytesseract
 from PIL import Image
-from paddleocr import PaddleOCR
 import cv2
 import numpy as np
 from pathlib import Path
@@ -12,17 +11,41 @@ import time
 from core.base_extractor import BaseExtractor, ExtractionResult
 from config import TESSERACT_CMD, OCR_LANGUAGES, OCR_CONFIDENCE_THRESHOLD
 
+# Try to import PaddleOCR (optional)
+try:
+    from paddleocr import PaddleOCR
+    PADDLE_AVAILABLE = True
+except ImportError:
+    PADDLE_AVAILABLE = False
+    print("Warning: PaddleOCR not available. Only Tesseract will be used.")
+
 class OCRExtractor(BaseExtractor):
     """Extract text from images using OCR"""
     
     def __init__(self, use_paddle: bool = False):
         super().__init__()
-        pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
-        self.use_paddle = use_paddle
+        self.use_paddle = use_paddle and PADDLE_AVAILABLE
         self.paddle_ocr = None
-        
-        if use_paddle:
-            self.paddle_ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+        if use_paddle and not PADDLE_AVAILABLE:
+            self.logger.warning("PaddleOCR requested but not available. Using Tesseract instead.")
+            self.use_paddle = False
+
+        if self.use_paddle:
+            try:
+                self.logger.info("Initializing PaddleOCR...")
+                # Note: show_log parameter may not be available in all PaddleOCR versions
+                self.paddle_ocr = PaddleOCR(use_angle_cls=True, lang='en')
+                self.logger.info("PaddleOCR initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize PaddleOCR: {e}")
+                self.logger.warning("Falling back to Tesseract")
+                self.use_paddle = False
+
+        if not self.use_paddle:
+            # Only set Tesseract path if we're using Tesseract
+            self.logger.info(f"Using Tesseract OCR: {TESSERACT_CMD}")
+            pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
     
     def extract(self, file_path: Path, **kwargs) -> ExtractionResult:
         """Extract text from image using OCR"""
