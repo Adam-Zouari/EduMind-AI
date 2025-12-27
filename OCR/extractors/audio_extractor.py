@@ -16,13 +16,26 @@ if os.path.exists(FFMPEG_PATH):
     os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
 class AudioExtractor(BaseExtractor):
-    """Extract text from audio files using Whisper"""
-    
+    """Extract text from audio files using Whisper with model caching"""
+
+    # Class-level cache for Whisper model (shared across instances)
+    _whisper_models = {}
+
     def __init__(self, model_name: str = WHISPER_MODEL):
         super().__init__()
-        self.logger.info(f"Loading Whisper model: {model_name}")
-        self.model = whisper.load_model(model_name, device=WHISPER_DEVICE)
-        self.logger.info("Whisper model loaded successfully")
+        self.model_name = model_name
+
+        # Use cached model if available
+        if model_name not in AudioExtractor._whisper_models:
+            self.logger.info(f"Loading Whisper model: {model_name} (cached instance)")
+            AudioExtractor._whisper_models[model_name] = whisper.load_model(
+                model_name, device=WHISPER_DEVICE
+            )
+            self.logger.info("Whisper model loaded successfully")
+        else:
+            self.logger.info(f"Using cached Whisper model: {model_name}")
+
+        self.model = AudioExtractor._whisper_models[model_name]
     
     def extract(self, file_path: Path, **kwargs) -> ExtractionResult:
         """Extract text from audio file"""
