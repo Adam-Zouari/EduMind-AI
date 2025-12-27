@@ -4,3 +4,11 @@ data/
 
 __pycache__/
 *.pyc
+
+# Add to .gitignore:
+venv_main/
+venv_ocr/
+venv_rag/
+OCR/logs/*.log
+*.bat
+pipeline/__pycache__/
