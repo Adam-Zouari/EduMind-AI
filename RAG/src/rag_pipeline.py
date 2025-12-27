@@ -259,7 +259,8 @@ class RAGPipeline:
             sources.append({
                 'source': metadata.get('source', 'Unknown'),
                 'page': metadata.get('page', 'N/A'),
-                'similarity': f"{(1 - result.get('distance', 1)) * 100:.1f}%"
+                'similarity': f"{(1 - result.get('distance', 1)) * 100:.1f}%",
+                'text': result.get('text', '')
             })
 
         # Get context
