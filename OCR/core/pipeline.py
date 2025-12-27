@@ -124,26 +124,63 @@ class DataIngestionPipeline:
                 error=str(e)
             )
     
-    def process_batch(self, file_paths: list[str | Path], **kwargs) -> list[ExtractionResult]:
+    def process_batch(self, file_paths: list[str | Path], parallel: bool = True,
+                      max_workers: int = 4, **kwargs) -> list[ExtractionResult]:
         """
-        Process multiple files
-        
+        Process multiple files with optional parallel processing
+
         Args:
             file_paths: List of file paths
+            parallel: Enable parallel processing (default: True)
+            max_workers: Maximum number of parallel workers (default: 4)
             **kwargs: Additional arguments for extractors
-            
+
         Returns:
             List of ExtractionResult objects
         """
-        results = []
-        
-        logger.info(f"Processing batch of {len(file_paths)} files")
-        
-        for file_path in file_paths:
-            result = self.process_file(file_path, **kwargs)
-            results.append(result)
-        
-        return results
+        logger.info(f"Processing batch of {len(file_paths)} files (parallel={parallel})")
+
+        if parallel and len(file_paths) > 1:
+            # Parallel processing
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from tqdm import tqdm
+
+            results = [None] * len(file_paths)
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tasks
+                future_to_index = {
+                    executor.submit(self.process_file, fp, **kwargs): i
+                    for i, fp in enumerate(file_paths)
+                }
+
+                # Collect results as they complete
+                for future in tqdm(as_completed(future_to_index), total=len(file_paths),
+                                  desc="Processing files"):
+                    index = future_to_index[future]
+                    try:
+                        results[index] = future.result()
+                    except Exception as e:
+                        logger.error(f"Error processing file {file_paths[index]}: {e}")
+                        results[index] = ExtractionResult(
+                            text="",
+                            metadata={},
+                            format_type="unknown",
+                            file_path=str(file_paths[index]),
+                            extraction_time=0,
+                            success=False,
+                            error=str(e)
+                        )
+
+            return results
+        else:
+            # Sequential processing
+            results = []
+            for file_path in file_paths:
+                result = self.process_file(file_path, **kwargs)
+                results.append(result)
+
+            return results
     
     def _get_extractor(self, format_type: str):
         """Get or initialize extractor for format type"""
