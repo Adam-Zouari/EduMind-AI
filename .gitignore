@@ -1,14 +1,81 @@
+# Virtual Environments
 venv/
+venv_*/
+env/
+ENV/
+.venv/
 
+# Data
 data/
+datasets/
+models/
 
+# Python Cache
 __pycache__/
+*.py[cod]
 *.pyc
+*.pyo
+*.pyd
+.Python
 
-# Add to .gitignore:
-venv_main/
-venv_ocr/
-venv_rag/
-OCR/logs/*.log
+# Logs
+*.log
+logs/
+OCR/logs/
+
+# Cache
+cache/
+OCR/cache/
+.cache/
+
+# Batch scripts (local only)
 *.bat
-pipeline/__pycache__/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+chroma_db/
+vector_store/
+RAG/chroma_db/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.bak
+
+# Environment files
+.env
+.env.local
+
+# Temporary documentation (delete these)
+FIXES_APPLIED.md
+INSTALLATION_COMPLETE.md
+OCR_SERVICE_READY.md
+QUICK_START.txt
+RUN_INSTRUCTIONS.md
+START_HERE.md
+
+# Temporary pipeline file
+run_pipeline.py
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution
+build/
+dist/
+*.egg-info/
