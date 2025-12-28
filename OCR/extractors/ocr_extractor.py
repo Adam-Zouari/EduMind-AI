@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.base_extractor import BaseExtractor, ExtractionResult
 from config import (
     TESSERACT_CMD, OCR_LANGUAGES, OCR_CONFIDENCE_THRESHOLD,
-    TEMP_DIR, OCR_USE_GPU, OCR_ENABLE_CACHING, OCR_CACHE_DIR,
+    TEMP_DIR, OCR_USE_PADDLE, OCR_USE_GPU, OCR_ENABLE_CACHING, OCR_CACHE_DIR,
     OCR_ADAPTIVE_PREPROCESSING, OCR_ROTATION_CORRECTION,
     OCR_PERSPECTIVE_CORRECTION, OCR_QUALITY_THRESHOLD
 )
@@ -34,9 +34,12 @@ class OCRExtractor(BaseExtractor):
     _paddle_instance = None
     _cache_lock = None
 
-    def __init__(self, use_paddle: bool = False, confidence_threshold: Optional[float] = None,
+    def __init__(self, use_paddle: Optional[bool] = None, confidence_threshold: Optional[float] = None,
                  languages: Optional[List[str]] = None, enable_caching: bool = OCR_ENABLE_CACHING):
         super().__init__()
+        # Use config default if not explicitly specified
+        if use_paddle is None:
+            use_paddle = OCR_USE_PADDLE
         self.use_paddle = use_paddle and PADDLE_AVAILABLE
         self.confidence_threshold = confidence_threshold or OCR_CONFIDENCE_THRESHOLD
         self.languages = languages or OCR_LANGUAGES
@@ -55,13 +58,31 @@ class OCRExtractor(BaseExtractor):
             # Use cached PaddleOCR instance to avoid reloading model
             if OCRExtractor._paddle_instance is None:
                 try:
+                    import os
+                    import paddle
+
+                    # Suppress verbose PaddlePaddle logging
+                    os.environ['FLAGS_allocator_strategy'] = 'auto_growth'
+
                     self.logger.info("Initializing PaddleOCR (cached instance)...")
-                    use_gpu = OCR_USE_GPU and cv2.cuda.getCudaEnabledDeviceCount() > 0
+
+                    # Set device (new API - use_gpu parameter removed)
+                    use_gpu = False
+                    if OCR_USE_GPU:
+                        try:
+                            if paddle.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0:
+                                paddle.device.set_device('gpu:0')
+                                use_gpu = True
+                            else:
+                                paddle.device.set_device('cpu')
+                        except:
+                            paddle.device.set_device('cpu')
+                    else:
+                        paddle.device.set_device('cpu')
+
                     OCRExtractor._paddle_instance = PaddleOCR(
-                        use_angle_cls=True,
-                        lang='en',
-                        use_gpu=use_gpu,
-                        show_log=False
+                        use_angle_cls=True,  # Note: deprecated but still works
+                        lang='en'
                     )
                     self.logger.info(f"PaddleOCR initialized successfully (GPU: {use_gpu})")
                 except Exception as e:

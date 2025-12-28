@@ -21,13 +21,14 @@ CACHE_DIR.mkdir(exist_ok=True)
 TIKA_SERVER_JAR = os.getenv("TIKA_SERVER_JAR", None)
 
 # OCR Configuration
-# Default Tesseract path for Windows (adjust if installed elsewhere)
+# PaddleOCR is preferred for better accuracy (95%+ vs 85-90% for Tesseract)
+OCR_USE_PADDLE = os.getenv("OCR_USE_PADDLE", "true").lower() == "true"  # Use PaddleOCR (recommended)
+OCR_USE_GPU = os.getenv("OCR_USE_GPU", "false").lower() == "true"  # Enable GPU for PaddleOCR (requires cuDNN)
+
+# Tesseract fallback configuration
 TESSERACT_CMD = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 OCR_LANGUAGES = ["eng", "fra", "spa", "deu"]  # Add more as needed
 OCR_CONFIDENCE_THRESHOLD = 60
-
-# Advanced OCR Settings
-OCR_USE_GPU = os.getenv("OCR_USE_GPU", "false").lower() == "true"  # Enable GPU for PaddleOCR
 OCR_ENABLE_CACHING = True  # Cache OCR results to avoid reprocessing
 OCR_CACHE_DIR = CACHE_DIR / "ocr"
 OCR_ADAPTIVE_PREPROCESSING = True  # Adjust preprocessing based on image quality
