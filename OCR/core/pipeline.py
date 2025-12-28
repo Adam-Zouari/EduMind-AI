@@ -31,7 +31,7 @@ class DataIngestionPipeline:
         self.extractors = {
             "pdf": PDFExtractor(),
             "docx": DOCXExtractor(),
-            "image": OCRExtractor(use_paddle=False),  # Use Tesseract OCR
+            "image": OCRExtractor(),  # Uses PaddleOCR by default (from config)
             "web": WebExtractor(),
             "audio": None,  # Lazy load (heavy model)
             "video": None   # Lazy load (heavy model)
