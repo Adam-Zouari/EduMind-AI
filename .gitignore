@@ -70,6 +70,12 @@ START_HERE.md
 # Temporary pipeline file
 run_pipeline.py
 
+# Test files
+OCR/test_image.png
+OCR/paddle_test.png
+*_test.png
+*_test.jpg
+
 # Testing
 .pytest_cache/
 .coverage
