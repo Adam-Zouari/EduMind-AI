@@ -35,6 +35,7 @@ OCR_ADAPTIVE_PREPROCESSING = True  # Adjust preprocessing based on image quality
 OCR_ROTATION_CORRECTION = True  # Auto-detect and correct rotation
 OCR_PERSPECTIVE_CORRECTION = True  # Auto-detect and correct perspective distortion
 OCR_QUALITY_THRESHOLD = 50  # Minimum image quality score (0-100)
+OCR_USE_ANGLE_CLS = os.getenv("OCR_USE_ANGLE_CLS", "false").lower() == "true"  # Disable by default to prevent IndexErrors
 OCR_ENABLE_HANDWRITING = False  # Enable handwriting recognition (requires additional models)
 OCR_PARALLEL_PROCESSING = True  # Enable parallel batch processing
 
