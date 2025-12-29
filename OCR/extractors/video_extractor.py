@@ -1,10 +1,29 @@
 """
 Video extraction using FFmpeg and Whisper
 """
+import os
+
+# CRITICAL: Set these BEFORE importing torch/whisper
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Try to import and configure torch
+import sys
+WHISPER_AVAILABLE = False
+try:
+    import torch
+    torch.set_num_threads(1)
+    import whisper
+    WHISPER_AVAILABLE = True
+except Exception as e:
+    print(f"ERROR: Could not load Whisper/PyTorch: {e}")
+    print("Video extraction will not be available.")
+    whisper = None
+
 import ffmpeg
-import whisper
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 import time
 import tempfile
 from core.base_extractor import BaseExtractor, ExtractionResult
@@ -12,17 +31,54 @@ from config import WHISPER_MODEL, WHISPER_DEVICE, VIDEO_FRAME_RATE
 
 class VideoExtractor(BaseExtractor):
     """Extract text from video files"""
-    
+
+    # Class-level cache for Whisper model (shared across instances)
+    _whisper_model = None
+
     def __init__(self, model_name: str = WHISPER_MODEL):
         super().__init__()
-        self.logger.info(f"Loading Whisper model for video: {model_name}")
-        self.model = whisper.load_model(model_name, device=WHISPER_DEVICE)
+        self.model = None
+
+        # Check if Whisper is available
+        if not WHISPER_AVAILABLE or whisper is None:
+            self.logger.error("Whisper is not available. Video extraction will fail.")
+            self.logger.error("Install PyTorch CPU version to fix:")
+            self.logger.error("  pip uninstall torch torchvision torchaudio")
+            self.logger.error("  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu")
+            return
+
+        # Use cached model if available
+        if VideoExtractor._whisper_model is None:
+            self.logger.info(f"Loading Whisper model for video: {model_name} (CPU mode)")
+            try:
+                # Force CPU mode to avoid CUDA/DLL issues
+                VideoExtractor._whisper_model = whisper.load_model(model_name, device="cpu")
+                self.logger.info("Whisper model loaded successfully on CPU")
+            except Exception as e:
+                self.logger.error(f"Failed to load Whisper model: {e}")
+                self.logger.info("Attempting to load with default settings...")
+                try:
+                    VideoExtractor._whisper_model = whisper.load_model(model_name)
+                    self.logger.info("Whisper model loaded with default settings")
+                except Exception as e2:
+                    self.logger.error(f"Failed to load Whisper model with default settings: {e2}")
+                    return
+        else:
+            self.logger.info(f"Using cached Whisper model for video")
+
+        self.model = VideoExtractor._whisper_model
     
     def extract(self, file_path: Path, **kwargs) -> ExtractionResult:
         """Extract audio and transcribe from video"""
         start_time = time.time()
         self.logger.info(f"Extracting from video: {file_path}")
-        
+
+        # Check if model is available
+        if self.model is None:
+            error_msg = "Whisper model not available. Install PyTorch CPU version to enable video extraction."
+            self.logger.error(error_msg)
+            return self._create_error_result(file_path, error_msg)
+
         try:
             # Extract audio from video
             audio_path = self._extract_audio(file_path)

@@ -16,7 +16,8 @@ from config import (
     TESSERACT_CMD, OCR_LANGUAGES, OCR_CONFIDENCE_THRESHOLD,
     TEMP_DIR, OCR_USE_PADDLE, OCR_USE_GPU, OCR_ENABLE_CACHING, OCR_CACHE_DIR,
     OCR_ADAPTIVE_PREPROCESSING, OCR_ROTATION_CORRECTION,
-    OCR_PERSPECTIVE_CORRECTION, OCR_QUALITY_THRESHOLD
+    OCR_PERSPECTIVE_CORRECTION, OCR_QUALITY_THRESHOLD,
+    OCR_USE_ANGLE_CLS
 )
 
 # Try to import PaddleOCR (optional)
@@ -81,10 +82,10 @@ class OCRExtractor(BaseExtractor):
                         paddle.device.set_device('cpu')
 
                     OCRExtractor._paddle_instance = PaddleOCR(
-                        use_angle_cls=True,  # Note: deprecated but still works
+                        use_angle_cls=OCR_USE_ANGLE_CLS,
                         lang='en'
                     )
-                    self.logger.info(f"PaddleOCR initialized successfully (GPU: {use_gpu})")
+                    self.logger.info(f"PaddleOCR initialized (angle_cls={OCR_USE_ANGLE_CLS})")
                 except Exception as e:
                     self.logger.error(f"Failed to initialize PaddleOCR: {e}")
                     self.logger.warning("Falling back to Tesseract")
@@ -362,10 +363,18 @@ class OCRExtractor(BaseExtractor):
         attempts = []
 
         # Attempt 1: Standard extraction
-        if self.use_paddle and self.paddle_ocr:
-            text, confidence = self._extract_with_paddle(image)
-        else:
-            text, confidence = self._extract_with_tesseract(image)
+        try:
+            if self.use_paddle and self.paddle_ocr:
+                text, confidence = self._extract_with_paddle(image)
+            else:
+                text, confidence = self._extract_with_tesseract(image)
+        except Exception as e:
+            self.logger.warning(f"Initial OCR extraction attempt failed: {e}")
+            if self.use_paddle:
+                self.logger.info("Falling back to Tesseract for this attempt...")
+                text, confidence = self._extract_with_tesseract(image)
+            else:
+                text, confidence = "", 0.0
 
         attempts.append(f"standard (conf: {confidence:.2f})")
 
@@ -375,10 +384,18 @@ class OCRExtractor(BaseExtractor):
 
             # Attempt 2: Inverted image (white text on black background)
             inverted = cv2.bitwise_not(image)
-            if self.use_paddle and self.paddle_ocr:
-                text2, confidence2 = self._extract_with_paddle(inverted)
-            else:
-                text2, confidence2 = self._extract_with_tesseract(inverted)
+            try:
+                if self.use_paddle and self.paddle_ocr:
+                    text2, confidence2 = self._extract_with_paddle(inverted)
+                else:
+                    text2, confidence2 = self._extract_with_tesseract(inverted)
+            except Exception as e:
+                self.logger.warning(f"Alternative OCR extraction attempt failed: {e}")
+                if self.use_paddle:
+                    self.logger.info("Falling back to Tesseract for alternative attempt...")
+                    text2, confidence2 = self._extract_with_tesseract(inverted)
+                else:
+                    text2, confidence2 = "", 0.0
 
             attempts.append(f"inverted (conf: {confidence2:.2f})")
 
@@ -416,23 +433,141 @@ class OCRExtractor(BaseExtractor):
     
     def _extract_with_paddle(self, image: np.ndarray) -> tuple[str, float]:
         """Extract text using PaddleOCR with GPU support"""
-        result = self.paddle_ocr.ocr(image, cls=True)
+        try:
+            # Comprehensive diagnostics
+            self.logger.debug(f"Input image - shape: {image.shape}, dtype: {image.dtype}, range: [{image.min()}, {image.max()}]")
+            
+            # Image format conversion - PaddleOCR prefers uint8 in BGR format
+            processed_image = image
+            if image.dtype != np.uint8:
+                self.logger.debug(f"Converting image from {image.dtype} to uint8")
+                if image.max() <= 1.0:
+                    processed_image = (image * 255).astype(np.uint8)
+                else:
+                    processed_image = image.astype(np.uint8)
+            
+            # Ensure image is in correct format (HWC with 3 channels)
+            if len(processed_image.shape) == 2:
+                self.logger.debug("Converting grayscale to BGR")
+                processed_image = cv2.cvtColor(processed_image, cv2.COLOR_GRAY2BGR)
+            elif processed_image.shape[2] == 4:
+                self.logger.debug("Converting RGBA to BGR")
+                processed_image = cv2.cvtColor(processed_image, cv2.COLOR_RGBA2BGR)
+            
+            # Make image contiguous in memory (can prevent some numpy errors)
+            processed_image = np.ascontiguousarray(processed_image)
+            
+            # Initial extraction attempt with detailed error tracking
+            try:
+                result = self.paddle_ocr.ocr(processed_image)
+            except (IndexError, TypeError, ValueError) as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                self.logger.error(f"PaddleOCR internal error: {type(e).__name__}: {e}")
+                self.logger.debug(f"Full traceback:\n{error_trace}")
+                raise
+            
+            text_parts = []
+            confidences = []
 
-        text_parts = []
-        confidences = []
+            # First check if result is a list (standard PaddleOCR format)
+            if result and isinstance(result, list) and len(result) > 0:
+                page_result = result[0]
+                
+                # Handle PaddlePaddle-X OCRResult object (newer API)
+                if page_result and hasattr(page_result, '__class__') and 'OCRResult' in page_result.__class__.__name__:
+                    self.logger.debug(f"Detected PaddlePaddle-X OCRResult object")
+                    try:
+                        # OCRResult is a dictionary-like object with json() method
+                        # Try to extract using json() first
+                        if hasattr(page_result, 'json') and callable(page_result.json):
+                            result_data = page_result.json()
+                            self.logger.debug(f"OCRResult json data type: {type(result_data)}")
+                            
+                            # Parse the JSON data structure
+                            if isinstance(result_data, dict):
+                                # Look for text in common keys
+                                for key in ['rec_text', 'text', 'texts', 'results', 'ocr_results']:
+                                    if key in result_data:
+                                        data = result_data[key]
+                                        if isinstance(data, list):
+                                            for item in data:
+                                                if isinstance(item, str):
+                                                    text_parts.append(item)
+                                                    confidences.append(100.0)
+                                                elif isinstance(item, dict) and 'text' in item:
+                                                    text_parts.append(str(item['text']))
+                                                    conf = item.get('score', item.get('confidence', 1.0)) * 100
+                                                    confidences.append(conf)
+                                        elif isinstance(data, str):
+                                            text_parts.append(data)
+                                            confidences.append(100.0)
+                                        break
+                                
+                                # If still no text, log the keys to help debug
+                                if not text_parts:
+                                    self.logger.warning(f"No text found in OCRResult JSON. Keys: {list(result_data.keys())}")
+                                    self.logger.debug(f"OCRResult JSON sample: {str(result_data)[:500]}")
+                        
+                        # Fallback: try accessing as dictionary
+                        elif hasattr(page_result, 'items'):
+                            for key, value in page_result.items():
+                                if isinstance(value, str) and len(value) > 0:
+                                    text_parts.append(value)
+                                    confidences.append(100.0)
+                                elif isinstance(value, list):
+                                    for item in value:
+                                        if isinstance(item, str):
+                                            text_parts.append(item)
+                                            confidences.append(100.0)
+                        
+                        # Last resort: try str() method
+                        elif hasattr(page_result, 'str') and callable(page_result.str):
+                            result_str = page_result.str()
+                            if result_str and len(result_str) > 10:
+                                text_parts.append(result_str)
+                                confidences.append(100.0)
+                        
+                        if not text_parts:
+                            # Log available attributes to help debug
+                            attrs = [attr for attr in dir(page_result) if not attr.startswith('_')]
+                            self.logger.warning(f"Unable to extract text from OCRResult. Available attributes: {attrs}")
+                    except Exception as e:
+                        import traceback
+                        self.logger.error(f"Failed to parse PaddlePaddle-X OCRResult: {e}")
+                        self.logger.debug(traceback.format_exc())
+                
+                # Handle standard list format
+                elif page_result and isinstance(page_result, list):
+                    for line in page_result:
+                        try:
+                            # Standard format: [box, (text, confidence)]
+                            if isinstance(line, (list, tuple)) and len(line) >= 2:
+                                content = line[1]
+                                if isinstance(content, (list, tuple)) and len(content) >= 2:
+                                    text = content[0]
+                                    conf = content[1]
+                                    
+                                    if conf * 100 > self.confidence_threshold:
+                                        text_parts.append(str(text))
+                                        confidences.append(float(conf) * 100)
+                                else:
+                                    self.logger.debug(f"Non-standard line content format: {content}")
+                            else:
+                                self.logger.debug(f"Non-standard line format: {line}")
+                        except (IndexError, TypeError) as e:
+                            self.logger.debug(f"Failed to parse PaddleOCR line element: {e}")
+                            continue
+                elif page_result is not None:
+                    self.logger.warning(f"Unexpected page result type: {type(page_result)}")
 
-        if result and result[0]:
-            for line in result[0]:
-                text = line[1][0]
-                conf = line[1][1]
-                if conf * 100 > self.confidence_threshold:
-                    text_parts.append(text)
-                    confidences.append(conf * 100)  # Convert to percentage
+            text = " ".join(text_parts)
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0
 
-        text = " ".join(text_parts)
-        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
-
-        return text, avg_confidence
+            return text, avg_confidence
+        except Exception as e:
+            self.logger.error(f"PaddleOCR extraction failed: {e}")
+            raise  # Re-raise to be caught by the caller
 
     def _validate_extraction(self, text: str, confidence: float) -> Tuple[bool, str]:
         """Validate extraction quality"""
