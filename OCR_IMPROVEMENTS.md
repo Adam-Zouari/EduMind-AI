@@ -193,7 +193,15 @@ OCR_CACHE_DIR = CACHE_DIR / "ocr"  # Cache location
 - **Graceful degradation** - Falls back to alternative methods
 
 ### **Implementation:**
-- `OCRExtractor._extract_with_retry()` - Multi-attempt extraction
+- `OCRExtractor._extract_with_retry()` - [x] Debug and fix PaddleOCR `cls` error in `ocr_extractor.py`
+    - [x] Identify the problematic code in `ocr_extractor.py`
+    - [x] Research/Verify correct PaddleOCR API usage
+    - [x] Implement the fix
+    - [x] Verify the fix
+- [/] Debug and fix PaddleOCR `IndexError` (tuple index out of range)
+    - [/] Inspect raw PaddleOCR result structure using a test script
+    - [ ] Implement robust parsing logic
+    - [ ] Verify the fix
 - `OCRExtractor._validate_extraction()` - Quality checks:
   - Minimum text length
   - Confidence threshold

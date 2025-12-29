@@ -169,6 +169,28 @@ def __init__(self, use_paddle: Optional[bool] = None, ...):
 
 **Impact:** OCRExtractor reads from config if not explicitly specified.
 
+### **3. Pipeline Uses PaddleOCR**
+
+**File:** `OCR/core/pipeline.py`
+
+```python
+"image": OCRExtractor(),  # Uses PaddleOCR by default (from config)
+```
+
+**Impact:** Pipeline no longer hardcodes Tesseract.
+
+### **4. Whisper Forced to CPU Mode**
+
+**Files:** `OCR/extractors/audio_extractor.py`, `OCR/extractors/video_extractor.py`
+
+```python
+# Force CPU mode for PyTorch to avoid CUDA/DLL issues
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+whisper.load_model(model_name, device="cpu")
+```
+
+**Impact:** Whisper uses CPU mode to avoid PyTorch CUDA/DLL errors.
+
 ---
 
 ## 🎯 System Performance
