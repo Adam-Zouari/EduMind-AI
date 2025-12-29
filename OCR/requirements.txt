@@ -12,11 +12,13 @@ python-docx
 # OCR
 pytesseract
 paddleocr
+paddlepaddle
 
 # Web Scraping
 trafilatura
 newspaper3k
 lxml
+lxml_html_clean
 beautifulsoup4
 
 # Media Processing
@@ -37,3 +39,6 @@ unidecode
 python-dotenv
 tqdm
 loguru
+uvicorn
+fastapi
+python-multipart
