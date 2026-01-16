@@ -882,10 +882,22 @@ To optimize system performance, multiple experiments were conducted across diffe
 **Maintainability:** Code modularity improved; new extractors can be added without modifying core pipeline.
 
 ---
+## 6. Application Overview
 
-## 6. Conclusion
+![](Screenshot%202026-01-04%20214033.png)
+![](Screenshot%202026-01-04%20214814.png)
+![](Screenshot%202026-01-04%20214127.png)
+![](Screenshot%202026-01-04%20214004.png)
+![](Screenshot%202026-01-04%20213701.png)
+![](Screenshot%202026-01-04%20213615.png)
+![](Screenshot%202026-01-04%20212920.png)
+![](Screenshot%202026-01-04%20213058.png)
+![](Screenshot%202026-01-04%20213130.png)
+![](Screenshot%202026-01-04%20213001.png)
 
-### 6.1 Project Outcome
+## 7. Conclusion
+
+### 7.1 Project Outcome
 
 EduMind-AI successfully delivers a **production-ready intelligent document processing platform** that:
 
@@ -903,7 +915,7 @@ EduMind-AI successfully delivers a **production-ready intelligent document proce
 - **3-5x faster** batch processing
 - **<100ms** query time for 10K documents
 
-### 6.2 Future Improvements
+### 7.2 Future Improvements
 
 #### **Short-Term (1-3 months)**
 
@@ -976,7 +988,7 @@ EduMind-AI successfully delivers a **production-ready intelligent document proce
    - Document access control
    - Audit logging and compliance
 
-### 6.3 Lessons Learned
+### 7.3 Lessons Learned
 
 1. **Architecture First:** Starting with microservices saved weeks of refactoring later.
 
