@@ -28,6 +28,9 @@ except ImportError:
     PADDLE_AVAILABLE = False
     print("Warning: PaddleOCR not available. Only Tesseract will be used.")
 
+
+import mlflow
+
 class OCRExtractor(BaseExtractor):
     """Extract text from images using OCR with advanced preprocessing and caching"""
 
@@ -123,9 +126,11 @@ class OCRExtractor(BaseExtractor):
 
             # Validate extraction quality
             is_valid, validation_msg = self._validate_extraction(text, confidence)
+            
+            ocr_engine = "paddleocr" if self.use_paddle else "tesseract"
 
             metadata = {
-                "ocr_engine": "paddleocr" if self.use_paddle else "tesseract",
+                "ocr_engine": ocr_engine,
                 "confidence": confidence,
                 "languages": self.languages,
                 "quality_score": quality_score,
@@ -136,6 +141,18 @@ class OCRExtractor(BaseExtractor):
             }
 
             extraction_time = time.time() - start_time
+            
+            # Log to MLflow if active run exists
+            try:
+                if mlflow.active_run():
+                    mlflow.log_metrics({
+                        "ocr_processing_time": extraction_time,
+                        "ocr_confidence": float(confidence),
+                        "image_quality_score": quality_score
+                    })
+                    mlflow.log_param("ocr_engine", ocr_engine)
+            except Exception as e:
+                self.logger.warning(f"Failed to log to MLflow: {e}")
 
             result = ExtractionResult(
                 text=text,
@@ -155,6 +172,7 @@ class OCRExtractor(BaseExtractor):
         except Exception as e:
             self.logger.error(f"OCR extraction failed: {e}")
             return self._create_error_result(file_path, str(e))
+
     
     def _assess_image_quality(self, file_path: Path) -> float:
         """Assess image quality using Laplacian variance (sharpness)"""
