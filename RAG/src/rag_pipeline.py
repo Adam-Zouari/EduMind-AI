@@ -19,6 +19,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+
+import mlflow
+
 class RAGPipeline:
     """
     Complete pipeline for processing OCR text and enabling RAG.
@@ -42,6 +45,10 @@ class RAGPipeline:
 
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
+            
+        # Initialize MLflow
+        self.experiment_name = "EduMind-AI-RAG"
+        mlflow.set_experiment(self.experiment_name)
 
         # Initialize all components
         logger.info("Initializing RAG Pipeline components...")
@@ -65,6 +72,19 @@ class RAGPipeline:
         self.rag_config = self.config['rag']
         self.top_k = self.rag_config['top_k']
         self.score_threshold = self.rag_config['score_threshold']
+        
+        # Log configuration parameters to MLflow
+        try:
+            with mlflow.start_run(run_name="pipeline_initialization"):
+                mlflow.log_params({
+                    "embedding_model": self.embedder.model_name,
+                    "chunk_size": self.text_chunker.chunk_size,
+                    "top_k": self.top_k,
+                    "score_threshold": self.score_threshold,
+                    "llm_model": self.llm_generator.model_name if self.llm_generator else "None"
+                })
+        except Exception as e:
+            logger.warning(f"Failed to log to MLflow: {e}")
 
         logger.info("RAG Pipeline initialized successfully")
     
@@ -80,18 +100,23 @@ class RAGPipeline:
         """
         text = document.get('text', '')
         metadata = {k: v for k, v in document.items() if k != 'text'}
+        
+        source = metadata.get('source', 'unknown')
+        
+        with mlflow.start_run(run_name=f"ingest_{Path(source).name}", nested=True):
+            # Chunk the text
+            chunks = self.text_chunker.chunk_text(text, metadata)
+            mlflow.log_metric("chunks_created", len(chunks))
+            mlflow.log_metric("source_text_length", len(text))
 
-        # Chunk the text
-        chunks = self.text_chunker.chunk_text(text, metadata)
+            # Generate embeddings
+            chunks_with_embeddings = self.embedder.embed_chunks(chunks)
 
-        # Generate embeddings
-        chunks_with_embeddings = self.embedder.embed_chunks(chunks)
+            # Store in vector database
+            self.vector_store.add_documents(chunks_with_embeddings)
 
-        # Store in vector database
-        self.vector_store.add_documents(chunks_with_embeddings)
-
-        logger.info(f"Ingested document: {len(chunks)} chunks created")
-        return len(chunks)
+            logger.info(f"Ingested document: {len(chunks)} chunks created")
+            return len(chunks)
     
     def ingest_documents(self, documents: List[Dict[str, Any]]) -> int:
         """
@@ -192,7 +217,7 @@ class RAGPipeline:
             'embedding_model': self.embedder.model_name,
             'embedding_dimension': self.embedder.embedding_dim,
             'chunk_size': self.text_chunker.chunk_size,
-            'chunk_overlap': self.text_chunker.chunk_overlap,
+            # 'chunk_overlap': self.text_chunker.chunk_overlap, # Removed in semantic chunker
             'collection_name': self.vector_store.collection_name
         }
         return stats
@@ -234,43 +259,52 @@ class RAGPipeline:
         # Retrieve relevant documents
         if top_k is None:
             top_k = self.top_k
-
-        results = self.query(query, top_k, filter_metadata)
-
-        if not results:
-            return {
-                'answer': "I couldn't find any relevant information to answer your question.",
-                'sources': [],
-                'context': ''
-            }
-
-        # Generate answer using LLM
-        answer = self.llm_generator.generate_with_results(
-            query=query,
-            results=results,
-            system_prompt=system_prompt,
-            stream=stream
-        )
-
-        # Extract sources
-        sources = []
-        for result in results:
-            metadata = result.get('metadata', {})
-            sources.append({
-                'source': metadata.get('source', 'Unknown'),
-                'page': metadata.get('page', 'N/A'),
-                'similarity': f"{(1 - result.get('distance', 1)) * 100:.1f}%",
-                'text': result.get('text', '')
+            
+        with mlflow.start_run(run_name="query_generation", nested=True):
+            mlflow.log_params({
+                "query": query,
+                "top_k": top_k
             })
 
-        # Get context
-        context = self.generate_context(query, top_k)
+            results = self.query(query, top_k, filter_metadata)
+            mlflow.log_metric("retrieved_documents", len(results))
 
-        return {
-            'answer': answer,
-            'sources': sources,
-            'context': context
-        }
+            if not results:
+                return {
+                    'answer': "I couldn't find any relevant information to answer your question.",
+                    'sources': [],
+                    'context': ''
+                }
+
+            # Generate answer using LLM
+            answer = self.llm_generator.generate_with_results(
+                query=query,
+                results=results,
+                system_prompt=system_prompt,
+                stream=stream
+            )
+            
+            mlflow.log_text(answer, "generated_answer.txt")
+
+            # Extract sources
+            sources = []
+            for result in results:
+                metadata = result.get('metadata', {})
+                sources.append({
+                    'source': metadata.get('source', 'Unknown'),
+                    'page': metadata.get('page', 'N/A'),
+                    'similarity': f"{(1 - result.get('distance', 1)) * 100:.1f}%",
+                    'text': result.get('text', '')
+                })
+
+            # Get context
+            context = self.generate_context(query, top_k)
+
+            return {
+                'answer': answer,
+                'sources': sources,
+                'context': context
+            }
 
 
 if __name__ == "__main__":
